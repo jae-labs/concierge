@@ -1,0 +1,18 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+
+# Go
+bot/slack/concierge
+*.test
+*.out
+
+# Claude Code
+.claude/
+
+# Secrets
+.env
+*.pem
+*-sa-key.json
