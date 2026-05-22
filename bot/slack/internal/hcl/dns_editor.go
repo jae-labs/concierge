@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -399,20 +400,34 @@ func findZoneClosingBrace(src []byte, zone string) (int, error) {
 // renderDnsEntry generates HCL text for a new DNS record entry.
 func renderDnsEntry(cfg conversation.DnsConfig) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("      %q = {\n", cfg.RecordKey))
-	sb.WriteString(fmt.Sprintf("        type    = %q\n", cfg.Type))
-	sb.WriteString(fmt.Sprintf("        name    = %q\n", cfg.Name))
-	sb.WriteString(fmt.Sprintf("        content = %q\n", cfg.Content))
+	sb.WriteString("      ")
+	sb.WriteString(strconv.Quote(cfg.RecordKey))
+	sb.WriteString(" = {\n")
+	sb.WriteString("        type    = ")
+	sb.WriteString(strconv.Quote(cfg.Type))
+	sb.WriteString("\n")
+	sb.WriteString("        name    = ")
+	sb.WriteString(strconv.Quote(cfg.Name))
+	sb.WriteString("\n")
+	sb.WriteString("        content = ")
+	sb.WriteString(strconv.Quote(cfg.Content))
+	sb.WriteString("\n")
 
 	wantProxied, wantPriority := dnsFieldsForType(cfg.Type)
 	if wantProxied {
-		sb.WriteString(fmt.Sprintf("        proxied = %s\n", boolStr(cfg.Proxied)))
+		sb.WriteString("        proxied = ")
+		sb.WriteString(boolStr(cfg.Proxied))
+		sb.WriteString("\n")
 	}
 	if wantPriority && cfg.Priority > 0 {
-		sb.WriteString(fmt.Sprintf("        priority = %d\n", cfg.Priority))
+		sb.WriteString("        priority = ")
+		sb.WriteString(strconv.Itoa(cfg.Priority))
+		sb.WriteString("\n")
 	}
 	if cfg.Comment != "" {
-		sb.WriteString(fmt.Sprintf("        comment = %q\n", cfg.Comment))
+		sb.WriteString("        comment = ")
+		sb.WriteString(strconv.Quote(cfg.Comment))
+		sb.WriteString("\n")
 	}
 
 	sb.WriteString("      }\n")

@@ -10,6 +10,12 @@ import (
 	"github.com/slack-go/slack"
 )
 
+func writeBuilderf(sb *strings.Builder, format string, args ...any) {
+	if _, err := fmt.Fprintf(sb, format, args...); err != nil {
+		panic(fmt.Sprintf("write to strings.Builder: %v", err))
+	}
+}
+
 const (
 	ActionCategorySelect = "category_select"
 	ActionResourceSelect = "resource_select"
@@ -646,8 +652,8 @@ func DeleteRepoModal(existingRepos []string) slack.ModalViewRequest {
 
 func RepoDeleteSummary(repoName, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Repository:    %s\n", repoName))
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Repository:    %s\n", repoName)
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 
 	return fmt.Sprintf("*Request summary:*\n```%s```", sb.String())
 }
@@ -890,77 +896,77 @@ func SettingsStep3Modal(cfg conversation.RepoConfig) slack.ModalViewRequest {
 
 func RepoSettingsSummary(repoName string, oldCfg, newCfg conversation.RepoConfig, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Repository:    %s\n", repoName))
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Repository:    %s\n", repoName)
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 	sb.WriteString("\nChanges:\n")
 
 	changed := false
 	if oldCfg.Description != newCfg.Description {
-		sb.WriteString(fmt.Sprintf("  Description: %s -> %s\n", oldCfg.Description, newCfg.Description))
+		writeBuilderf(&sb, "  Description: %s -> %s\n", oldCfg.Description, newCfg.Description)
 		changed = true
 	}
 	if oldCfg.Visibility != newCfg.Visibility {
-		sb.WriteString(fmt.Sprintf("  Visibility: %s -> %s\n", oldCfg.Visibility, newCfg.Visibility))
+		writeBuilderf(&sb, "  Visibility: %s -> %s\n", oldCfg.Visibility, newCfg.Visibility)
 		changed = true
 	}
 	if oldCfg.DefaultBranch != newCfg.DefaultBranch {
-		sb.WriteString(fmt.Sprintf("  Default Branch: %s -> %s\n", oldCfg.DefaultBranch, newCfg.DefaultBranch))
+		writeBuilderf(&sb, "  Default Branch: %s -> %s\n", oldCfg.DefaultBranch, newCfg.DefaultBranch)
 		changed = true
 	}
 	if oldCfg.HasIssues != newCfg.HasIssues {
-		sb.WriteString(fmt.Sprintf("  Has Issues: %v -> %v\n", oldCfg.HasIssues, newCfg.HasIssues))
+		writeBuilderf(&sb, "  Has Issues: %v -> %v\n", oldCfg.HasIssues, newCfg.HasIssues)
 		changed = true
 	}
 	if oldCfg.HasWiki != newCfg.HasWiki {
-		sb.WriteString(fmt.Sprintf("  Has Wiki: %v -> %v\n", oldCfg.HasWiki, newCfg.HasWiki))
+		writeBuilderf(&sb, "  Has Wiki: %v -> %v\n", oldCfg.HasWiki, newCfg.HasWiki)
 		changed = true
 	}
 	if oldCfg.AllowAutoMerge != newCfg.AllowAutoMerge {
-		sb.WriteString(fmt.Sprintf("  Auto Merge: %v -> %v\n", oldCfg.AllowAutoMerge, newCfg.AllowAutoMerge))
+		writeBuilderf(&sb, "  Auto Merge: %v -> %v\n", oldCfg.AllowAutoMerge, newCfg.AllowAutoMerge)
 		changed = true
 	}
 	if oldCfg.AllowUpdateBranch != newCfg.AllowUpdateBranch {
-		sb.WriteString(fmt.Sprintf("  Update Branch: %v -> %v\n", oldCfg.AllowUpdateBranch, newCfg.AllowUpdateBranch))
+		writeBuilderf(&sb, "  Update Branch: %v -> %v\n", oldCfg.AllowUpdateBranch, newCfg.AllowUpdateBranch)
 		changed = true
 	}
 	if oldCfg.DeleteBranchOnMerge != newCfg.DeleteBranchOnMerge {
-		sb.WriteString(fmt.Sprintf("  Delete Branch on Merge: %v -> %v\n", oldCfg.DeleteBranchOnMerge, newCfg.DeleteBranchOnMerge))
+		writeBuilderf(&sb, "  Delete Branch on Merge: %v -> %v\n", oldCfg.DeleteBranchOnMerge, newCfg.DeleteBranchOnMerge)
 		changed = true
 	}
 	if oldCfg.HasDiscussions != newCfg.HasDiscussions {
-		sb.WriteString(fmt.Sprintf("  Discussions: %v -> %v\n", oldCfg.HasDiscussions, newCfg.HasDiscussions))
+		writeBuilderf(&sb, "  Discussions: %v -> %v\n", oldCfg.HasDiscussions, newCfg.HasDiscussions)
 		changed = true
 	}
 	if oldCfg.HasProjects != newCfg.HasProjects {
-		sb.WriteString(fmt.Sprintf("  Projects: %v -> %v\n", oldCfg.HasProjects, newCfg.HasProjects))
+		writeBuilderf(&sb, "  Projects: %v -> %v\n", oldCfg.HasProjects, newCfg.HasProjects)
 		changed = true
 	}
 	if oldCfg.HomepageURL != newCfg.HomepageURL {
-		sb.WriteString(fmt.Sprintf("  Homepage URL: %s -> %s\n", oldCfg.HomepageURL, newCfg.HomepageURL))
+		writeBuilderf(&sb, "  Homepage URL: %s -> %s\n", oldCfg.HomepageURL, newCfg.HomepageURL)
 		changed = true
 	}
 	if strings.Join(oldCfg.Topics, ",") != strings.Join(newCfg.Topics, ",") {
-		sb.WriteString(fmt.Sprintf("  Topics: %s -> %s\n", strings.Join(oldCfg.Topics, ", "), strings.Join(newCfg.Topics, ", ")))
+		writeBuilderf(&sb, "  Topics: %s -> %s\n", strings.Join(oldCfg.Topics, ", "), strings.Join(newCfg.Topics, ", "))
 		changed = true
 	}
 	if !teamAccessEqual(oldCfg.TeamAccess, newCfg.TeamAccess) {
-		sb.WriteString(fmt.Sprintf("  Team Access: %s -> %s\n", formatTeamAccessDisplay(oldCfg.TeamAccess), formatTeamAccessDisplay(newCfg.TeamAccess)))
+		writeBuilderf(&sb, "  Team Access: %s -> %s\n", formatTeamAccessDisplay(oldCfg.TeamAccess), formatTeamAccessDisplay(newCfg.TeamAccess))
 		changed = true
 	}
 	if oldCfg.EnableBranchProtection != newCfg.EnableBranchProtection {
-		sb.WriteString(fmt.Sprintf("  Branch Protection: %v -> %v\n", oldCfg.EnableBranchProtection, newCfg.EnableBranchProtection))
+		writeBuilderf(&sb, "  Branch Protection: %v -> %v\n", oldCfg.EnableBranchProtection, newCfg.EnableBranchProtection)
 		changed = true
 	} else if newCfg.EnableBranchProtection {
 		if oldCfg.RequiredReviews != newCfg.RequiredReviews {
-			sb.WriteString(fmt.Sprintf("  Required Reviews: %d -> %d\n", oldCfg.RequiredReviews, newCfg.RequiredReviews))
+			writeBuilderf(&sb, "  Required Reviews: %d -> %d\n", oldCfg.RequiredReviews, newCfg.RequiredReviews)
 			changed = true
 		}
 		if oldCfg.DismissStaleReviews != newCfg.DismissStaleReviews {
-			sb.WriteString(fmt.Sprintf("  Dismiss Stale Reviews: %v -> %v\n", oldCfg.DismissStaleReviews, newCfg.DismissStaleReviews))
+			writeBuilderf(&sb, "  Dismiss Stale Reviews: %v -> %v\n", oldCfg.DismissStaleReviews, newCfg.DismissStaleReviews)
 			changed = true
 		}
 		if oldCfg.RequireConversationResolution != newCfg.RequireConversationResolution {
-			sb.WriteString(fmt.Sprintf("  Require Conversation Resolution: %v -> %v\n", oldCfg.RequireConversationResolution, newCfg.RequireConversationResolution))
+			writeBuilderf(&sb, "  Require Conversation Resolution: %v -> %v\n", oldCfg.RequireConversationResolution, newCfg.RequireConversationResolution)
 			changed = true
 		}
 	}
@@ -1218,63 +1224,63 @@ func DnsUpdateModal(zone string, cfg conversation.DnsConfig) slack.ModalViewRequ
 
 func DnsAddSummary(zone string, cfg conversation.DnsConfig, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Zone:          %s\n", zone))
-	sb.WriteString(fmt.Sprintf("Type:          %s\n", cfg.Type))
-	sb.WriteString(fmt.Sprintf("Name:          %s\n", cfg.Name))
-	sb.WriteString(fmt.Sprintf("Content:       %s\n", cfg.Content))
+	writeBuilderf(&sb, "Zone:          %s\n", zone)
+	writeBuilderf(&sb, "Type:          %s\n", cfg.Type)
+	writeBuilderf(&sb, "Name:          %s\n", cfg.Name)
+	writeBuilderf(&sb, "Content:       %s\n", cfg.Content)
 	if proxied, _ := dnsFieldRelevant(cfg.Type, "proxied"); proxied {
-		sb.WriteString(fmt.Sprintf("Proxied:       %v\n", cfg.Proxied))
+		writeBuilderf(&sb, "Proxied:       %v\n", cfg.Proxied)
 	}
 	if priority, _ := dnsFieldRelevant(cfg.Type, "priority"); priority {
-		sb.WriteString(fmt.Sprintf("Priority:      %d\n", cfg.Priority))
+		writeBuilderf(&sb, "Priority:      %d\n", cfg.Priority)
 	}
 	if cfg.Comment != "" {
-		sb.WriteString(fmt.Sprintf("Comment:       %s\n", cfg.Comment))
+		writeBuilderf(&sb, "Comment:       %s\n", cfg.Comment)
 	}
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 
 	return fmt.Sprintf("*Request summary:*\n```%s```", sb.String())
 }
 
 func DnsRemoveSummary(zone, recordKey, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Zone:          %s\n", zone))
-	sb.WriteString(fmt.Sprintf("Record:        %s\n", recordKey))
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Zone:          %s\n", zone)
+	writeBuilderf(&sb, "Record:        %s\n", recordKey)
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 
 	return fmt.Sprintf("*Request summary:*\n```%s```", sb.String())
 }
 
 func DnsUpdateSummary(zone string, oldCfg, newCfg conversation.DnsConfig, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Zone:          %s\n", zone))
-	sb.WriteString(fmt.Sprintf("Record:        %s\n", oldCfg.RecordKey))
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Zone:          %s\n", zone)
+	writeBuilderf(&sb, "Record:        %s\n", oldCfg.RecordKey)
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 	sb.WriteString("\nChanges:\n")
 
 	changed := false
 	if oldCfg.Type != newCfg.Type {
-		sb.WriteString(fmt.Sprintf("  Type: %s -> %s\n", oldCfg.Type, newCfg.Type))
+		writeBuilderf(&sb, "  Type: %s -> %s\n", oldCfg.Type, newCfg.Type)
 		changed = true
 	}
 	if oldCfg.Name != newCfg.Name {
-		sb.WriteString(fmt.Sprintf("  Name: %s -> %s\n", oldCfg.Name, newCfg.Name))
+		writeBuilderf(&sb, "  Name: %s -> %s\n", oldCfg.Name, newCfg.Name)
 		changed = true
 	}
 	if oldCfg.Content != newCfg.Content {
-		sb.WriteString(fmt.Sprintf("  Content: %s -> %s\n", oldCfg.Content, newCfg.Content))
+		writeBuilderf(&sb, "  Content: %s -> %s\n", oldCfg.Content, newCfg.Content)
 		changed = true
 	}
 	if oldCfg.Proxied != newCfg.Proxied {
-		sb.WriteString(fmt.Sprintf("  Proxied: %v -> %v\n", oldCfg.Proxied, newCfg.Proxied))
+		writeBuilderf(&sb, "  Proxied: %v -> %v\n", oldCfg.Proxied, newCfg.Proxied)
 		changed = true
 	}
 	if oldCfg.Priority != newCfg.Priority {
-		sb.WriteString(fmt.Sprintf("  Priority: %d -> %d\n", oldCfg.Priority, newCfg.Priority))
+		writeBuilderf(&sb, "  Priority: %d -> %d\n", oldCfg.Priority, newCfg.Priority)
 		changed = true
 	}
 	if oldCfg.Comment != newCfg.Comment {
-		sb.WriteString(fmt.Sprintf("  Comment: %s -> %s\n", oldCfg.Comment, newCfg.Comment))
+		writeBuilderf(&sb, "  Comment: %s -> %s\n", oldCfg.Comment, newCfg.Comment)
 		changed = true
 	}
 	if !changed {
@@ -1427,52 +1433,52 @@ func OrgSettingsModal(cfg conversation.OrgConfig) slack.ModalViewRequest {
 
 func OrgSettingsSummary(oldCfg, newCfg conversation.OrgConfig, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 	sb.WriteString("\nChanges:\n")
 
 	changed := false
 	if oldCfg.Name != newCfg.Name {
-		sb.WriteString(fmt.Sprintf("  Name: %s -> %s\n", oldCfg.Name, newCfg.Name))
+		writeBuilderf(&sb, "  Name: %s -> %s\n", oldCfg.Name, newCfg.Name)
 		changed = true
 	}
 	if oldCfg.BillingEmail != newCfg.BillingEmail {
-		sb.WriteString(fmt.Sprintf("  Billing Email: %s -> %s\n", oldCfg.BillingEmail, newCfg.BillingEmail))
+		writeBuilderf(&sb, "  Billing Email: %s -> %s\n", oldCfg.BillingEmail, newCfg.BillingEmail)
 		changed = true
 	}
 	if oldCfg.Blog != newCfg.Blog {
-		sb.WriteString(fmt.Sprintf("  Blog: %s -> %s\n", oldCfg.Blog, newCfg.Blog))
+		writeBuilderf(&sb, "  Blog: %s -> %s\n", oldCfg.Blog, newCfg.Blog)
 		changed = true
 	}
 	if oldCfg.Description != newCfg.Description {
-		sb.WriteString(fmt.Sprintf("  Description: %s -> %s\n", oldCfg.Description, newCfg.Description))
+		writeBuilderf(&sb, "  Description: %s -> %s\n", oldCfg.Description, newCfg.Description)
 		changed = true
 	}
 	if oldCfg.Location != newCfg.Location {
-		sb.WriteString(fmt.Sprintf("  Location: %s -> %s\n", oldCfg.Location, newCfg.Location))
+		writeBuilderf(&sb, "  Location: %s -> %s\n", oldCfg.Location, newCfg.Location)
 		changed = true
 	}
 	if oldCfg.DefaultRepoPermission != newCfg.DefaultRepoPermission {
-		sb.WriteString(fmt.Sprintf("  Default Repo Permission: %s -> %s\n", oldCfg.DefaultRepoPermission, newCfg.DefaultRepoPermission))
+		writeBuilderf(&sb, "  Default Repo Permission: %s -> %s\n", oldCfg.DefaultRepoPermission, newCfg.DefaultRepoPermission)
 		changed = true
 	}
 	if oldCfg.MembersCanCreateRepos != newCfg.MembersCanCreateRepos {
-		sb.WriteString(fmt.Sprintf("  Members Can Create Repos: %v -> %v\n", oldCfg.MembersCanCreateRepos, newCfg.MembersCanCreateRepos))
+		writeBuilderf(&sb, "  Members Can Create Repos: %v -> %v\n", oldCfg.MembersCanCreateRepos, newCfg.MembersCanCreateRepos)
 		changed = true
 	}
 	if oldCfg.WebCommitSignoffRequired != newCfg.WebCommitSignoffRequired {
-		sb.WriteString(fmt.Sprintf("  Web Commit Sign-off: %v -> %v\n", oldCfg.WebCommitSignoffRequired, newCfg.WebCommitSignoffRequired))
+		writeBuilderf(&sb, "  Web Commit Sign-off: %v -> %v\n", oldCfg.WebCommitSignoffRequired, newCfg.WebCommitSignoffRequired)
 		changed = true
 	}
 	if oldCfg.DependabotAlerts != newCfg.DependabotAlerts {
-		sb.WriteString(fmt.Sprintf("  Dependabot Alerts: %v -> %v\n", oldCfg.DependabotAlerts, newCfg.DependabotAlerts))
+		writeBuilderf(&sb, "  Dependabot Alerts: %v -> %v\n", oldCfg.DependabotAlerts, newCfg.DependabotAlerts)
 		changed = true
 	}
 	if oldCfg.DependabotSecurityUpdates != newCfg.DependabotSecurityUpdates {
-		sb.WriteString(fmt.Sprintf("  Dependabot Security Updates: %v -> %v\n", oldCfg.DependabotSecurityUpdates, newCfg.DependabotSecurityUpdates))
+		writeBuilderf(&sb, "  Dependabot Security Updates: %v -> %v\n", oldCfg.DependabotSecurityUpdates, newCfg.DependabotSecurityUpdates)
 		changed = true
 	}
 	if oldCfg.DependencyGraph != newCfg.DependencyGraph {
-		sb.WriteString(fmt.Sprintf("  Dependency Graph: %v -> %v\n", oldCfg.DependencyGraph, newCfg.DependencyGraph))
+		writeBuilderf(&sb, "  Dependency Graph: %v -> %v\n", oldCfg.DependencyGraph, newCfg.DependencyGraph)
 		changed = true
 	}
 	if !changed {
@@ -1484,24 +1490,24 @@ func OrgSettingsSummary(oldCfg, newCfg conversation.OrgConfig, justification str
 
 func RepoCreateSummary(name, description, visibility string, topics []string, teamAccess map[string]string, defaultBranch string, hasIssues bool, enableProtection bool, dismissStale, requireLinear, requireConvRes bool, requiredReviews int, autoMerge, updateBranch, deleteBranch, hasDiscussions, hasProjects bool, homepageURL, justification string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Name:          %s\n", name))
-	sb.WriteString(fmt.Sprintf("Description:   %s\n", description))
-	sb.WriteString(fmt.Sprintf("Visibility:    %s\n", visibility))
-	sb.WriteString(fmt.Sprintf("Justification: %s\n", justification))
+	writeBuilderf(&sb, "Name:          %s\n", name)
+	writeBuilderf(&sb, "Description:   %s\n", description)
+	writeBuilderf(&sb, "Visibility:    %s\n", visibility)
+	writeBuilderf(&sb, "Justification: %s\n", justification)
 	if len(topics) > 0 {
-		sb.WriteString(fmt.Sprintf("Topics:        %s\n", strings.Join(topics, ", ")))
+		writeBuilderf(&sb, "Topics:        %s\n", strings.Join(topics, ", "))
 	}
 	if len(teamAccess) > 0 {
 		pairs := make([]string, 0, len(teamAccess))
 		for k, v := range teamAccess {
 			pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
 		}
-		sb.WriteString(fmt.Sprintf("Team Access:   %s\n", strings.Join(pairs, ", ")))
+		writeBuilderf(&sb, "Team Access:   %s\n", strings.Join(pairs, ", "))
 	}
-	sb.WriteString(fmt.Sprintf("Default Branch: %s\n", defaultBranch))
+	writeBuilderf(&sb, "Default Branch: %s\n", defaultBranch)
 	if enableProtection {
-		sb.WriteString(fmt.Sprintf("Branch Protection: enabled (reviews=%d, dismiss_stale=%v, linear=%v, conv_res=%v)\n",
-			requiredReviews, dismissStale, requireLinear, requireConvRes))
+		writeBuilderf(&sb, "Branch Protection: enabled (reviews=%d, dismiss_stale=%v, linear=%v, conv_res=%v)\n",
+			requiredReviews, dismissStale, requireLinear, requireConvRes)
 	}
 	if autoMerge {
 		sb.WriteString("Auto Merge: enabled\n")

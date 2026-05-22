@@ -76,13 +76,42 @@ func NewHandler(api *slack.Client, sm *socketmode.Client, gh *ghclient.Client, r
 
 func (h *Handler) Run() {
 	go h.eventLoop()
-	h.sm.Run()
+	if err := h.sm.Run(); err != nil {
+		h.logger.Error("socket mode client stopped", "error", err)
+	}
+}
+
+func (h *Handler) ackRequest(req *socketmode.Request, payload ...any) {
+	if err := h.sm.Ack(*req, payload...); err != nil {
+		h.logger.Error("failed to acknowledge socket mode request", "error", err)
+	}
+}
+
+func (h *Handler) postMessage(channelID, operation string, opts ...slack.MsgOption) string {
+	_, ts, err := h.api.PostMessage(channelID, opts...)
+	if err != nil {
+		h.logger.Error("failed to post Slack message", "operation", operation, "channel", channelID, "error", err)
+		return ""
+	}
+	return ts
+}
+
+func (h *Handler) postEphemeral(channelID, userID, operation string, opts ...slack.MsgOption) {
+	if _, err := h.api.PostEphemeral(channelID, userID, opts...); err != nil {
+		h.logger.Error("failed to post ephemeral Slack message", "operation", operation, "channel", channelID, "user", userID, "error", err)
+	}
+}
+
+func (h *Handler) updateChannelMessage(channelID, messageTS, operation string, opts ...slack.MsgOption) {
+	if _, _, _, err := h.api.UpdateMessage(channelID, messageTS, opts...); err != nil {
+		h.logger.Error("failed to update Slack message", "operation", operation, "channel", channelID, "message_ts", messageTS, "error", err)
+	}
 }
 
 // reply sends a message in the assistant thread and tracks it.
 func (h *Handler) reply(state *conversation.State, kind conversation.MessageKind, label string, opts ...slack.MsgOption) string {
 	opts = append(opts, slack.MsgOptionTS(state.ThreadTS))
-	_, ts, _ := h.api.PostMessage(state.ChannelID, opts...)
+	ts := h.postMessage(state.ChannelID, "reply", opts...)
 	if ts != "" {
 		state.TrackMessage(ts, kind, label)
 	}
@@ -120,7 +149,7 @@ func (h *Handler) replyPR(state *conversation.State, prTitle, prURL string) {
 	} else {
 		closingText = fmt.Sprintf("Request submitted to <#%s>.\n\n*Next steps:* follow up with your manager to approve the request above following instructions displayed on it.\n\nThis chat has ended. Open a *New Chat* if you need to raise a new request.", h.requestsChannelID)
 	}
-	h.api.PostMessage(state.ChannelID,
+	h.postMessage(state.ChannelID, "post request closure",
 		slack.MsgOptionText(closingText, false),
 		slack.MsgOptionTS(state.ThreadTS),
 		slack.MsgOptionDisableLinkUnfurl(),
@@ -133,7 +162,7 @@ func (h *Handler) replyPR(state *conversation.State, prTitle, prURL string) {
 
 // updateMessage replaces the blocks of an existing message (used to lock dropdowns).
 func (h *Handler) updateMessage(state *conversation.State, messageTS string, opts ...slack.MsgOption) {
-	_, _, _, _ = h.api.UpdateMessage(state.ChannelID, messageTS, opts...)
+	h.updateChannelMessage(state.ChannelID, messageTS, "update interactive message", opts...)
 }
 
 func (h *Handler) eventLoop() {
@@ -154,7 +183,7 @@ func (h *Handler) handleEventsAPI(evt socketmode.Event) {
 	if !ok {
 		return
 	}
-	h.sm.Ack(*evt.Request)
+	h.ackRequest(evt.Request)
 
 	h.logger.Debug("events API received", "inner_type", eventsAPI.InnerEvent.Type)
 
@@ -204,7 +233,7 @@ func (h *Handler) handleAssistantThreadStarted(ev *slackevents.AssistantThreadSt
 	userID := ev.AssistantThread.UserID
 
 	if !h.isAuthorized(userID) {
-		h.api.PostMessage(channelID,
+		h.postMessage(channelID, "notify unauthorized assistant thread",
 			slack.MsgOptionText("You are not authorized to use conCierge. Contact an admin for access.", false),
 			slack.MsgOptionTS(threadTS))
 		return
@@ -227,7 +256,7 @@ func (h *Handler) handleAssistantThreadStarted(ev *slackevents.AssistantThreadSt
 // Used as fallback when assistant_thread_started is not available.
 func (h *Handler) handleNewFlow(userID, channelID, messageTS string) {
 	if !h.isAuthorized(userID) {
-		h.api.PostMessage(channelID,
+		h.postMessage(channelID, "notify unauthorized new flow",
 			slack.MsgOptionText("You are not authorized to use conCierge. Contact an admin for access.", false),
 			slack.MsgOptionTS(messageTS))
 		return
@@ -250,7 +279,7 @@ func (h *Handler) handleNewFlow(userID, channelID, messageTS string) {
 func (h *Handler) handleThreadReply(userID, channelID, text, threadTS string) {
 	state := h.store.Get(threadTS)
 	if state == nil {
-		h.api.PostMessage(channelID,
+		h.postMessage(channelID, "notify expired thread",
 			slack.MsgOptionText("This session is no longer valid. Please open a new chat.", false),
 			slack.MsgOptionTS(threadTS))
 		return
@@ -259,13 +288,13 @@ func (h *Handler) handleThreadReply(userID, channelID, text, threadTS string) {
 	if strings.EqualFold(strings.TrimSpace(text), "cancel") {
 		go h.lockFlowMessages(state)
 		h.store.Delete(threadTS)
-		h.api.PostMessage(channelID,
+		h.postMessage(channelID, "confirm cancelled thread",
 			slack.MsgOptionText("This session is no longer valid. Please open a new chat.", false),
 			slack.MsgOptionTS(threadTS))
 		return
 	}
 
-	h.api.PostMessage(channelID,
+	h.postMessage(channelID, "notify invalid thread reply",
 		slack.MsgOptionText("This session is no longer valid. Please open a new chat.", false),
 		slack.MsgOptionTS(threadTS))
 	go h.lockFlowMessages(state)
@@ -280,12 +309,12 @@ func (h *Handler) handleInteractive(evt socketmode.Event) {
 
 	switch callback.Type {
 	case slack.InteractionTypeBlockActions:
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 		h.handleBlockAction(callback)
 	case slack.InteractionTypeViewSubmission:
 		h.handleViewSubmission(evt, callback)
 	default:
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 	}
 }
 
@@ -303,7 +332,7 @@ func (h *Handler) handleBlockAction(callback slack.InteractionCallback) {
 	state := h.store.Get(threadTS)
 
 	if state == nil {
-		h.api.PostEphemeral(callback.Channel.ID, callback.User.ID,
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "notify expired block action",
 			slack.MsgOptionText("This flow has expired. Click *New Chat* to start another.", false))
 		return
 	}
@@ -311,7 +340,7 @@ func (h *Handler) handleBlockAction(callback slack.InteractionCallback) {
 	messageTS := callback.Message.Timestamp
 
 	if !state.HasMessage(messageTS) {
-		h.api.PostEphemeral(callback.Channel.ID, callback.User.ID,
+		h.postEphemeral(callback.Channel.ID, callback.User.ID, "notify stale block action",
 			slack.MsgOptionText("This flow has expired. Click *New Chat* to start another.", false))
 		return
 	}
@@ -501,7 +530,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 	parts := strings.SplitN(callback.View.PrivateMetadata, ":", 2)
 	if len(parts) != 2 {
 		h.logger.Warn("invalid PrivateMetadata format", "metadata", callback.View.PrivateMetadata)
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 		return
 	}
 	threadTS, nonce := parts[0], parts[1]
@@ -509,7 +538,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 	state := h.store.Get(threadTS)
 	if state == nil || state.Nonce != nonce {
 		h.logger.Warn("no flow or nonce mismatch for modal submission", "thread_ts", threadTS)
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 		return
 	}
 
@@ -524,7 +553,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 	switch callback.View.CallbackID {
 	case CallbackRepoStep1:
 		if errs := validateRepoStep1(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -532,7 +561,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		}
 		repoName := values[BlockName][ElemName].Value
 		if msg := h.checkRepoAlreadyExists(repoName); msg != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockName: msg},
 			})
@@ -560,11 +589,11 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 			"response_action": "update",
 			"view":            modal,
 		}
-		h.sm.Ack(*evt.Request, resp)
+		h.ackRequest(evt.Request, resp)
 
 	case CallbackRepoStep2:
 		if errs := validateRepoStep2(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -596,18 +625,18 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 			"response_action": "update",
 			"view":            modal,
 		}
-		h.sm.Ack(*evt.Request, resp)
+		h.ackRequest(evt.Request, resp)
 
 	case CallbackRepoStep3:
 		if errs := validateRepoStep3(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
 			return
 		}
 		h.parseStep3Values(state, values)
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		rc := state.RepoConfig
 		summary := RepoCreateSummary(
@@ -626,7 +655,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 	case CallbackDeleteRepo:
 		targetRepo := values[BlockDeleteTarget][ElemDeleteTarget].SelectedOption.Value
 		if msg := h.checkRepoStillExists(targetRepo); msg != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockDeleteTarget: msg},
 			})
@@ -635,7 +664,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		state.TargetRepo = targetRepo
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		summary := RepoDeleteSummary(state.TargetRepo, state.Justification)
 		h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText(summary, false))
@@ -650,7 +679,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		src, err := h.fetchHCLSource()
 		if err != nil {
 			h.logger.Error("failed to fetch repos HCL for settings", "error", err)
-			h.sm.Ack(*evt.Request)
+			h.ackRequest(evt.Request)
 			h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText("Failed to fetch the repository configuration.", false))
 			h.store.Delete(state.ThreadTS)
 			return
@@ -659,7 +688,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		cfg, err := hcleditor.ExtractRepoConfig(src, repoName)
 		if err != nil {
 			h.logger.Error("failed to extract repo config", "error", err, "repo", repoName)
-			h.sm.Ack(*evt.Request)
+			h.ackRequest(evt.Request)
 			h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText(fmt.Sprintf("Could not read config for %s: %v", repoName, err), false))
 			h.store.Delete(state.ThreadTS)
 			return
@@ -673,11 +702,11 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 			"response_action": "update",
 			"view":            modal,
 		}
-		h.sm.Ack(*evt.Request, resp)
+		h.ackRequest(evt.Request, resp)
 
 	case CallbackSettingsStep1:
 		if errs := validateSettingsStep1(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -696,11 +725,11 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 			"response_action": "update",
 			"view":            modal,
 		}
-		h.sm.Ack(*evt.Request, resp)
+		h.ackRequest(evt.Request, resp)
 
 	case CallbackSettingsStep2:
 		if errs := validateSettingsStep2(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -728,18 +757,18 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 			"response_action": "update",
 			"view":            modal,
 		}
-		h.sm.Ack(*evt.Request, resp)
+		h.ackRequest(evt.Request, resp)
 
 	case CallbackSettingsStep3:
 		if errs := validateRepoStep3(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
 			return
 		}
 		h.parseStep3Values(state, values)
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		// fetch fresh HCL to get old config for comparison
 		src, err := h.fetchHCLSource()
@@ -772,7 +801,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 
 	case CallbackDnsAdd:
 		if errs := validateDnsFields(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -784,7 +813,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 
 		// check for DNS conflicts against live data
 		if conflict := h.checkDnsAddConflict(state.TargetZone, newName, newType); conflict != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockDnsName: conflict},
 			})
@@ -807,7 +836,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		}
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		summary := DnsAddSummary(state.TargetZone, state.DnsConfig, state.Justification)
 		h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText(summary, false))
@@ -820,7 +849,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 
 		// verify the record still exists before proceeding
 		if msg := h.checkDnsRecordStillExists(state.TargetZone, recordKey); msg != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockDnsRecord: msg},
 			})
@@ -830,7 +859,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		state.TargetRecord = recordKey
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		summary := DnsRemoveSummary(state.TargetZone, state.TargetRecord, state.Justification)
 		h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText(summary, false))
@@ -845,7 +874,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		src, err := h.fetchCloudflareHCL()
 		if err != nil {
 			h.logger.Error("failed to fetch DNS HCL for dns update", "error", err)
-			h.sm.Ack(*evt.Request)
+			h.ackRequest(evt.Request)
 			h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText("Failed to fetch DNS configuration.", false))
 			h.store.Delete(state.ThreadTS)
 			return
@@ -854,7 +883,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		cfg, err := hcleditor.ExtractDnsConfig(src, state.TargetZone, recordKey)
 		if err != nil {
 			h.logger.Error("failed to extract dns config", "error", err, "record", recordKey)
-			h.sm.Ack(*evt.Request)
+			h.ackRequest(evt.Request)
 			h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText(fmt.Sprintf("Could not read config for %s: %v", recordKey, err), false))
 			h.store.Delete(state.ThreadTS)
 			return
@@ -867,11 +896,11 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 			"response_action": "update",
 			"view":            modal,
 		}
-		h.sm.Ack(*evt.Request, resp)
+		h.ackRequest(evt.Request, resp)
 
 	case CallbackDnsUpdate:
 		if errs := validateDnsFields(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -901,7 +930,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		}
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		// fetch fresh HCL for old config comparison
 		src, err := h.fetchCloudflareHCL()
@@ -933,7 +962,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 
 	case CallbackOrgSettings:
 		if errs := validateOrgSettings(values); len(errs) > 0 {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          errs,
 			})
@@ -975,7 +1004,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 
 		// fetch fresh HCL for comparison
 		src, err := h.fetchOrgHCLSource()
@@ -1010,7 +1039,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		username := values[BlockMemberSelect][ElemMemberSelect].SelectedOption.Value
 		role := values[BlockRoleSelect][ElemRoleSelect].SelectedOption.Value
 		if errMsg := validateTeamMemberAdd(team, username, role); errMsg != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockTeamSelect: errMsg},
 			})
@@ -1020,7 +1049,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
 		state.Phase = conversation.PhaseCreatingPR
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 		h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText("Processing your request...", false))
 		go h.createTeamMemberPR(state)
 
@@ -1028,7 +1057,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		team := values[BlockTeamSelect][ElemTeamSelect].SelectedOption.Value
 		username := values[BlockMemberSelect][ElemMemberSelect].SelectedOption.Value
 		if errMsg := validateTeamMemberRemove(team, username); errMsg != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockTeamSelect: errMsg},
 			})
@@ -1038,7 +1067,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
 		state.Phase = conversation.PhaseCreatingPR
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 		h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText("Processing your request...", false))
 		go h.createTeamMemberPR(state)
 
@@ -1047,7 +1076,7 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		username := values[BlockMemberSelect][ElemMemberSelect].SelectedOption.Value
 		role := values[BlockRoleSelect][ElemRoleSelect].SelectedOption.Value
 		if errMsg := validateTeamMemberChangeRole(team, username, role); errMsg != "" {
-			h.sm.Ack(*evt.Request, map[string]interface{}{
+			h.ackRequest(evt.Request, map[string]interface{}{
 				"response_action": "errors",
 				"errors":          map[string]string{BlockTeamSelect: errMsg},
 			})
@@ -1057,12 +1086,12 @@ func (h *Handler) handleViewSubmission(evt socketmode.Event, callback slack.Inte
 		state.Justification = values[BlockJustification][ElemJustification].Value
 		state.Priority = values[BlockPriority][ElemPriority].SelectedOption.Value
 		state.Phase = conversation.PhaseCreatingPR
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 		h.reply(state, conversation.MsgProgress, "", slack.MsgOptionText("Processing your request...", false))
 		go h.createTeamMemberPR(state)
 
 	default:
-		h.sm.Ack(*evt.Request)
+		h.ackRequest(evt.Request)
 	}
 }
 
@@ -1144,17 +1173,17 @@ func (h *Handler) handlePRApproval(userID, channelID, messageTS string) {
 	body := fmt.Sprintf("Approved via Slack by %s", approverName)
 	if err := h.gh.CommentOnPR(ctx, prNumber, body); err != nil {
 		h.logger.Error("failed to comment on PR", "error", err, "pr", prNumber)
-		h.api.PostMessage(channelID,
+		h.postMessage(channelID, "report PR comment failure",
 			slack.MsgOptionText(fmt.Sprintf("Failed to comment on PR #%d: %s", prNumber, err), false),
 			slack.MsgOptionTS(messageTS))
 		return
 	}
 
-	h.api.PostMessage(channelID,
+	h.postMessage(channelID, "confirm PR approval",
 		slack.MsgOptionText(fmt.Sprintf(":white_check_mark: PR #%d has been approved by %s.", prNumber, approverName), false),
 		slack.MsgOptionTS(messageTS))
 
-	h.api.PostMessage(channelID,
+	h.postMessage(channelID, "notify PR review status",
 		slack.MsgOptionText("This request/PR is now pending review and merge to main by an Admin.", false),
 		slack.MsgOptionTS(messageTS))
 }
@@ -1164,30 +1193,30 @@ func writeBulletResourceDetails(sb *strings.Builder, state *conversation.State) 
 	case "repo":
 		switch state.ActionType {
 		case "add":
-			sb.WriteString(fmt.Sprintf("• *Repository:* %s\n", state.RepoConfig.Name))
+			writeBuilderf(sb, "• *Repository:* %s\n", state.RepoConfig.Name)
 			if state.RepoConfig.Description != "" {
-				sb.WriteString(fmt.Sprintf("• *Description:* %s\n", state.RepoConfig.Description))
+				writeBuilderf(sb, "• *Description:* %s\n", state.RepoConfig.Description)
 			}
-			sb.WriteString(fmt.Sprintf("• *Visibility:* %s\n", state.RepoConfig.Visibility))
+			writeBuilderf(sb, "• *Visibility:* %s\n", state.RepoConfig.Visibility)
 		case "delete", "settings":
-			sb.WriteString(fmt.Sprintf("• *Repository:* %s\n", state.TargetRepo))
+			writeBuilderf(sb, "• *Repository:* %s\n", state.TargetRepo)
 		}
 	case "dns":
 		switch state.ActionType {
 		case "add":
-			sb.WriteString(fmt.Sprintf("• *Zone:* %s\n", state.TargetZone))
-			sb.WriteString(fmt.Sprintf("• *Record:* %s (%s) -> %s\n", state.DnsConfig.Name, state.DnsConfig.Type, state.DnsConfig.Content))
+			writeBuilderf(sb, "• *Zone:* %s\n", state.TargetZone)
+			writeBuilderf(sb, "• *Record:* %s (%s) -> %s\n", state.DnsConfig.Name, state.DnsConfig.Type, state.DnsConfig.Content)
 		case "delete", "settings":
-			sb.WriteString(fmt.Sprintf("• *Zone:* %s\n", state.TargetZone))
-			sb.WriteString(fmt.Sprintf("• *Record:* %s\n", state.TargetRecord))
+			writeBuilderf(sb, "• *Zone:* %s\n", state.TargetZone)
+			writeBuilderf(sb, "• *Record:* %s\n", state.TargetRecord)
 		}
 	case "org_settings":
 		sb.WriteString("• *Resource:* Organization settings\n")
 	case "user_management":
-		sb.WriteString(fmt.Sprintf("• *Team:* %s\n", state.TeamMemberConfig.Team))
-		sb.WriteString(fmt.Sprintf("• *Member:* %s\n", state.TeamMemberConfig.Username))
+		writeBuilderf(sb, "• *Team:* %s\n", state.TeamMemberConfig.Team)
+		writeBuilderf(sb, "• *Member:* %s\n", state.TeamMemberConfig.Username)
 		if state.ActionType != "delete" {
-			sb.WriteString(fmt.Sprintf("• *Role:* %s\n", state.TeamMemberConfig.Role))
+			writeBuilderf(sb, "• *Role:* %s\n", state.TeamMemberConfig.Role)
 		}
 	}
 }
@@ -1195,22 +1224,22 @@ func writeBulletResourceDetails(sb *strings.Builder, state *conversation.State) 
 func buildRequestSummary(state *conversation.State, prTitle, prURL string) []slack.Block {
 	var sb strings.Builder
 	now := time.Now().UTC().Format("2 Jan 2006, 15:04 UTC")
-	sb.WriteString(fmt.Sprintf("• *Request:* %s\n", requestSummaryTitle(prTitle)))
-	sb.WriteString(fmt.Sprintf("• *Requested by:* <@%s>\n", state.UserID))
-	sb.WriteString(fmt.Sprintf("• *Requested at:* %s\n", now))
-	sb.WriteString(fmt.Sprintf("• *Priority:* %s %s\n", priorityEmoji(state.Priority), capitalizeFirst(state.Priority)))
+	writeBuilderf(&sb, "• *Request:* %s\n", requestSummaryTitle(prTitle))
+	writeBuilderf(&sb, "• *Requested by:* <@%s>\n", state.UserID)
+	writeBuilderf(&sb, "• *Requested at:* %s\n", now)
+	writeBuilderf(&sb, "• *Priority:* %s %s\n", priorityEmoji(state.Priority), capitalizeFirst(state.Priority))
 
 	writeBulletResourceDetails(&sb, state)
 
 	if state.Justification != "" {
-		sb.WriteString(fmt.Sprintf("• *Justification:* %s\n", state.Justification))
+		writeBuilderf(&sb, "• *Justification:* %s\n", state.Justification)
 	}
 
 	prLabel := "View PR"
 	if matches := prURLPattern.FindStringSubmatch(prURL); len(matches) >= 2 {
 		prLabel = "#" + matches[1]
 	}
-	sb.WriteString(fmt.Sprintf("• *PR:* <%s|%s>\n", prURL, prLabel))
+	writeBuilderf(&sb, "• *PR:* <%s|%s>\n", prURL, prLabel)
 	sb.WriteString("\n:arrow_right: *Action required* — A manager has to approve by reacting to this top-level message with :thumbsup:")
 
 	section := slack.NewSectionBlock(
@@ -1877,7 +1906,7 @@ func repoConfigEqual(a, b conversation.RepoConfig) bool {
 
 func (h *Handler) reportError(state *conversation.State, step string, err error) {
 	h.logger.Error("PR creation failed", "step", step, "error", err, "user", state.UserID)
-	h.api.PostMessage(state.ChannelID,
+	h.postMessage(state.ChannelID, "report PR creation failure",
 		slack.MsgOptionText(fmt.Sprintf("Something went wrong at %s: %v", step, err), false),
 		slack.MsgOptionTS(state.ThreadTS))
 
@@ -1906,6 +1935,6 @@ func (h *Handler) lockFlowMessages(state *conversation.State) {
 		default:
 			continue
 		}
-		h.api.UpdateMessage(state.ChannelID, msg.TS, slack.MsgOptionBlocks(blocks...))
+		h.updateChannelMessage(state.ChannelID, msg.TS, "lock flow message", slack.MsgOptionBlocks(blocks...))
 	}
 }

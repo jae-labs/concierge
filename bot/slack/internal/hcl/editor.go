@@ -698,9 +698,10 @@ func findReposClosingBrace(src []byte) (int, error) {
 		} else {
 			// count braces on this line
 			for _, b := range line {
-				if b == '{' {
+				switch b {
+				case '{':
 					depth++
-				} else if b == '}' {
+				case '}':
 					depth--
 					if depth == 0 {
 						// this line contains the closing brace of repos
