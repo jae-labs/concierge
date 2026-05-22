@@ -130,3 +130,21 @@ go build ./cmd/concierge/
 ```sh
 go test ./...
 ```
+
+## CI and releases
+
+The bot now follows the same GitHub Actions model as `jae-labs/flashcards`, adapted to this monorepo's `bot/slack` module path.
+
+| Workflow | Trigger | Behavior |
+|---|---|---|
+| `ci.yml` | Pushes to `main` and pull requests that touch `bot/slack/**` or the bot workflow files | Runs lint, test, cross-platform build, and security scan jobs for the bot |
+| `release.yml` | Pushes to `main` that touch `bot/slack/**` or the bot workflow files | Builds Linux and macOS release artifacts, creates the next patch release, and refreshes the `latest` release |
+
+Release assets are published from `cmd/concierge` with these names:
+
+| Platform | Asset name |
+|---|---|
+| Linux amd64 | `concierge-linux-amd64` |
+| Linux arm64 | `concierge-linux-arm64` |
+| macOS amd64 | `concierge-darwin-amd64` |
+| macOS arm64 | `concierge-darwin-arm64` |

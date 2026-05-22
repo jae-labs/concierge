@@ -27,7 +27,7 @@ The bot reads and writes terraform locals files directly via the GitHub API. Any
 
 Workflows live in `.github/workflows/`. Triggering is path-based:
 
-- `bot/slack/**` triggers Go build and test (`concierge-build.yml`).
+- `bot/slack/**`, `.github/workflows/ci.yml`, and `.github/workflows/release.yml` trigger bot CI and releases (`ci.yml`, `release.yml`).
 - `iac/terraform/github/**` or `iac/terraform/modules/github/**` triggers `github-apply.yml`.
 - `iac/terraform/cloudflare/**` or `iac/terraform/modules/cloudflare/**` triggers `cloudflare-apply.yml`.
 - `iac/terraform/doppler/**` or `iac/terraform/modules/doppler/**` triggers `doppler-apply.yml`.

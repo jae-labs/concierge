@@ -1,15 +1,43 @@
-# Terraform CI/CD
+# Repository CI/CD
 
 GitHub Actions workflows at `.github/workflows/` in the repo root.
 
 ## Workflows
 
-| Workflow | Trigger paths | Provider secret |
+| Workflow | Trigger paths | Required secret |
 |---|---|---|
+| `ci.yml` | `bot/slack/**`, `.github/workflows/ci.yml`, `.github/workflows/release.yml` | None |
+| `release.yml` | `bot/slack/**`, `.github/workflows/ci.yml`, `.github/workflows/release.yml` (push to `main` only) | Default `GITHUB_TOKEN` |
 | `github-apply.yml` | `iac/terraform/github/**`, `iac/terraform/modules/github/**` | `GH_PAT` |
 | `cloudflare-apply.yml` | `iac/terraform/cloudflare/**`, `iac/terraform/modules/cloudflare/**` | `CLOUDFLARE_API_TOKEN` |
 | `doppler-apply.yml` | `iac/terraform/doppler/**`, `iac/terraform/modules/doppler/**` | `DOPPLER_TOKEN` |
 | `oci-apply.yml` | `iac/terraform/oci/**` | OCI auth and stack secrets |
+
+## Bot workflows
+
+### `ci.yml`
+
+The bot CI workflow mirrors the structure used in `jae-labs/flashcards` while targeting the nested Go module in `bot/slack/`.
+
+1. Checks out code (`actions/checkout`, SHA-ratcheted)
+2. Sets up Go from `bot/slack/go.mod`
+3. Runs `golangci-lint`
+4. Runs `go test -v -race -coverprofile=coverage.out ./...`
+5. Uploads coverage to Codecov on a best-effort basis
+6. Builds `cmd/concierge` across the Linux/macOS matrix used by the reference repo
+7. Runs `gosec` and `trivy` against the bot subtree
+
+### `release.yml`
+
+The bot release workflow also mirrors `flashcards`, with monorepo path adjustments and no Homebrew publishing step.
+
+1. Builds `cmd/concierge` artifacts for Linux and macOS
+2. Packages tarballs and raw binaries
+3. Uploads build artifacts between jobs
+4. Computes the next patch release tag from the latest `v*.*.*` tag on `main`
+5. Creates a versioned GitHub release plus a refreshed `latest` release
+
+The workflow uses the default `GITHUB_TOKEN`; no extra release-publishing secrets are required.
 
 ## Reusable workflow
 
@@ -46,7 +74,7 @@ The OCI workflow:
 
 ## Trigger
 
-Push to `main` affecting module-specific paths (see table).
+Bot CI runs on path-scoped pushes to `main` and pull requests. Bot releases run on path-scoped pushes to `main`. Terraform applies run on pushes to `main` affecting module-specific paths (see table).
 
 ## Secrets
 
