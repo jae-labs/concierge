@@ -82,7 +82,7 @@ locals {
     }
     "sandbox" = {
       description       = "Exploring ideas, testing concepts, and prototyping solutions."
-      visibility        = "public"
+      visibility        = "private"
       has_issues        = true
       default_branch    = "main"
       team_access       = { "Maintainers" = "admin" }
