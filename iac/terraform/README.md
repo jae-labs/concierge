@@ -89,4 +89,4 @@ The conCierge bot automates repo creation via Slack. For manual additions, edit 
 
 ## CI/CD
 
-Merges to `main` trigger path-filtered `terraform apply` via GitHub Actions. GitHub, Cloudflare, and Doppler use the shared `terraform-reusable.yml`; OCI uses a dedicated `oci-apply.yml` because it needs multiple OCI auth and stack-input secrets. Workflows live in `.github/workflows/` at the repo root and use a `production` environment with protected secrets.
+Merges to `main` trigger path-filtered Terraform runs via GitHub Actions. GitHub, Cloudflare, and Doppler use the shared `terraform-reusable.yml`; OCI uses a dedicated `oci-apply.yml` because it needs multiple OCI auth and stack-input secrets. In GitHub Actions, the workflows write a temporary local tfplan and suppress Terraform plan/apply stdout and stderr; local `terraform plan` and `terraform apply` behavior is unchanged. Workflows live in `.github/workflows/` at the repo root and use a `production` environment with protected secrets.

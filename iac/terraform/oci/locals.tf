@@ -1,6 +1,6 @@
 locals {
   oci_stack = {
-    boot_volume_size_gbs   = 75
+    boot_volume_size_gbs   = 200
     data_volume_size_gbs   = 0
     environment            = "prod"
     instance_count         = 1
