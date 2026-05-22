@@ -45,10 +45,14 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json
 
-      - name: Terraform apply
+      - name: Terraform plan/apply
         run: |
+          set -euo pipefail
           export "${{ inputs.provider-token-name }}=${{ secrets.PROVIDER_TOKEN }}"
-          terraform apply -auto-approve
+          plan_file="$(mktemp "${TMPDIR:-/tmp}/terraform-plan.XXXXXX")"
+          trap 'rm -f "${plan_file}"' EXIT
+          terraform plan -input=false -no-color -out="${plan_file}" > /dev/null 2>&1
+          terraform apply -input=false -auto-approve "${plan_file}" > /dev/null 2>&1
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-sa-key.json
 

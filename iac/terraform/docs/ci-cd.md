@@ -24,9 +24,9 @@ The reusable workflow:
 2. Sets up Terraform (`hashicorp/setup-terraform`, ~> 1.5)
 3. Writes GCP credentials to temp file from `GCP_SA_KEY` secret
 4. Runs `terraform init` with `GOOGLE_APPLICATION_CREDENTIALS`
-5. Serializes applies per root module with a GitHub Actions concurrency group keyed by repository and `module-path`
-6. Runs `terraform apply -auto-approve` with provider token injected
-7. Cleans up credentials (always runs)
+5. Runs `terraform plan` into a temporary local tfplan with stdout/stderr suppressed in GitHub Actions
+6. Runs `terraform apply` from that temporary tfplan with stdout/stderr suppressed in GitHub Actions
+7. Deletes the temporary tfplan, serializes applies per root module with a GitHub Actions concurrency group keyed by repository and `module-path`, and cleans up credentials (always runs)
 
 ## Dedicated OCI workflow
 
@@ -40,9 +40,9 @@ The OCI workflow:
 4. Writes the OCI API private key to a temp PEM file from `OCI_PRIVATE_KEY`
 5. Exports OCI provider env vars and `TF_VAR_*` stack inputs
 6. Runs `terraform init`
-7. Runs `terraform apply -auto-approve`
-8. Cleans up temporary credential files
-9. Serializes applies for `iac/terraform/oci`
+7. Runs `terraform plan` into a temporary local tfplan with stdout/stderr suppressed in GitHub Actions
+8. Runs `terraform apply` from that temporary tfplan with stdout/stderr suppressed in GitHub Actions
+9. Deletes the temporary tfplan, cleans up temporary credential files, and serializes applies for `iac/terraform/oci`
 
 ## Trigger
 

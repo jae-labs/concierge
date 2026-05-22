@@ -96,7 +96,7 @@ oci iam availability-domain list --compartment-id "$TF_VAR_compartment_id"
 
 Use the `name` field exactly as returned by OCI.
 
-The committed defaults in `locals.tf` keep the stack simple for the current tenancy limits: `1` `VM.Standard.E2.1.Micro` instance, a `75` GB boot volume, no attached data volumes, one fixed private IP in the public subnet, and one reserved public IP.
+The committed defaults in `locals.tf` keep the stack simple for the current tenancy limits: `1` `VM.Standard.E2.1.Micro` instance, a `200` GB boot volume, no attached data volumes, one fixed private IP in the public subnet, and one reserved public IP.
 
 ### Apply the OCI stack
 
