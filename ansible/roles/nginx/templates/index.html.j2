@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>System Terminal</title>
+
+    {% if 'app_prod_debian_aws' in group_names %}
+        {% set term_color = "#FF9900" %}
+    {% elif 'app_prod_ubuntu_oci' in group_names %}
+        {% set term_color = "#f80000" %}
+    {% else %}
+        {% set term_color = "#0db7ed" %}
+    {% endif %}
+
+    <style>
+        body {
+            background: #0d0d0d;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: "Fira Mono", monospace;
+            color: {{ term_color }};
+            overflow: hidden;
+        }
+
+        .terminal {
+            width: 80%;
+            max-width: 900px;
+            background: #111;
+            border: 2px solid {{ term_color }};
+            padding: 20px;
+            box-shadow: 0 0 20px {{ term_color }};
+            position: relative;
+        }
+
+        .title-bar {
+            background: #0d0d0d;
+            border-bottom: 2px solid {{ term_color }};
+            padding: 10px;
+            font-weight: bold;
+            text-align: center;
+            margin: -20px -20px 20px -20px;
+        }
+
+        pre {
+            margin: 0;
+            font-size: 1.1em;
+            line-height: 1.3;
+            text-shadow: 0 0 5px {{ term_color }};
+        }
+
+        .scanlines {
+            pointer-events: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(rgba(0, 255, 0, 0.05) 1px, transparent 1px);
+            background-size: 100% 3px;
+            opacity: 0.15;
+        }
+
+        .cursor::after {
+            content: "█";
+            animation: blink 1s steps(1) infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+
+<body>
+<div class="terminal">
+    <div class="title-bar">{{ fqdn }}</div>
+
+    <pre class="cursor">
+Hostname:       {{ ansible_hostname }}
+OS:             {{ ansible_distribution }} {{ ansible_distribution_version }}
+Kernel:         {{ ansible_kernel }}
+Architecture:   {{ ansible_architecture }}
+Type:           VM
+
+vCPUs Total:    {{ ansible_processor_vcpus }}
+Memory Total:   {{ ansible_memtotal_mb }} MB
+</div>
+</body>
+</html>

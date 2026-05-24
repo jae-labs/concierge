@@ -1,0 +1,23 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+
+# Go
+src/concierge
+*.test
+*.out
+
+# Ansible
+.ansible/
+.venv/
+*.retry
+
+# Claude Code
+.claude/
+
+# Secrets
+.env
+*.pem
+*-sa-key.json

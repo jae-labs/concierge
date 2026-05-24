@@ -1,0 +1,127 @@
+- name: Ensure concierge_env is a mapping
+  ansible.builtin.assert:
+    that:
+      - concierge_env is mapping
+    fail_msg: concierge_env must be provided as a key/value mapping of environment variables.
+
+- name: Ensure required concierge environment variables are present
+  ansible.builtin.assert:
+    that:
+      - concierge_env[item] is defined
+      - (concierge_env[item] | string | trim | length) > 0
+    fail_msg: "Missing required concierge environment variable: {{ item }}"
+  loop: "{{ concierge_required_env_vars }}"
+
+- name: Create temporary local build directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: concierge-build-
+  register: concierge_local_build_dir
+  check_mode: false
+  delegate_to: localhost
+  vars:
+    ansible_connection: local
+    ansible_become: false
+
+- name: Build concierge binary for the target OCI platform
+  ansible.builtin.command:
+    argv:
+      - go
+      - build
+      - -o
+      - "{{ concierge_local_build_dir.path }}/concierge"
+      - "{{ concierge_build_package }}"
+    chdir: "{{ concierge_src_dir }}"
+  environment:
+    GOOS: "{{ concierge_goos }}"
+    GOARCH: "{{ concierge_goarch }}"
+    CGO_ENABLED: "{{ concierge_cgo_enabled }}"
+  check_mode: false
+  delegate_to: localhost
+  changed_when: true
+  vars:
+    ansible_connection: local
+    ansible_become: false
+
+- name: Ensure concierge group exists
+  ansible.builtin.group:
+    name: "{{ concierge_group }}"
+    system: true
+
+- name: Ensure concierge user exists
+  ansible.builtin.user:
+    name: "{{ concierge_user }}"
+    group: "{{ concierge_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ concierge_state_dir }}"
+    create_home: false
+
+- name: Ensure concierge install directory exists
+  ansible.builtin.file:
+    path: "{{ concierge_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure concierge state directory exists
+  ansible.builtin.file:
+    path: "{{ concierge_state_dir }}"
+    state: directory
+    owner: "{{ concierge_user }}"
+    group: "{{ concierge_group }}"
+    mode: "0750"
+
+- name: Ensure concierge config directory exists
+  ansible.builtin.file:
+    path: "{{ concierge_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install concierge binary
+  ansible.builtin.copy:
+    src: "{{ concierge_local_build_dir.path }}/concierge"
+    dest: "{{ concierge_binary_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart concierge
+
+- name: Render concierge environment file
+  ansible.builtin.template:
+    src: concierge.env.j2
+    dest: "{{ concierge_env_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart concierge
+
+- name: Install concierge systemd service
+  ansible.builtin.template:
+    src: concierge.service.j2
+    dest: "{{ concierge_service_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart concierge
+
+- name: Ensure concierge service is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ concierge_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Remove temporary local build directory
+  ansible.builtin.file:
+    path: "{{ concierge_local_build_dir.path }}"
+    state: absent
+  check_mode: false
+  delegate_to: localhost
+  vars:
+    ansible_connection: local
+    ansible_become: false

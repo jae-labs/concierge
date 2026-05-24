@@ -1,0 +1,24 @@
+- name: Configure OCI host baseline
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Configure host firewall
+      ansible.builtin.import_role:
+        name: oci_iptables
+
+    - name: Configure nginx
+      ansible.builtin.import_role:
+        name: nginx
+
+    - name: Apply pending handlers before certificate issuance
+      ansible.builtin.meta: flush_handlers
+
+    - name: Configure certbot
+      ansible.builtin.import_role:
+        name: certbot
+
+    - name: Deploy concierge bot
+      ansible.builtin.import_role:
+        name: concierge
