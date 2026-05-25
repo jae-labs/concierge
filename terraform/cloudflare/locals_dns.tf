@@ -67,12 +67,6 @@ locals {
         content  = "mx3.zoho.com"
         priority = 30
       }
-      "txt-algolia" = {
-        type    = "TXT"
-        name    = "algolia-site-verification"
-        content = "\"3B4606A0624E09DD\""
-        comment = "Algolia DocSearch Domain Verification"
-      }
       "txt-gh-org" = {
         type    = "TXT"
         name    = "_gh-jae-labs-o"
