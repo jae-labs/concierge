@@ -17,6 +17,7 @@ prometheus.remote_write "grafana_cloud_metrics" {
 
 // 1. Host (Unix) system metrics
 prometheus.exporter.unix "host" {
+  enabled_collectors = ["cpu", "meminfo", "diskstats", "netdev", "systemd", "filesystem", "loadavg", "tcpstat"]
 }
 
 prometheus.scrape "host" {
@@ -33,10 +34,12 @@ prometheus.scrape "concierge" {
 }
 
 // 3. Nginx Status metrics
+prometheus.exporter.nginx "nginx" {
+  address = "http://127.0.0.1:8081/metrics"
+}
+
 prometheus.scrape "nginx" {
-  targets = [
-    {"__address__" = "127.0.0.1:8081"},
-  ]
+  targets    = prometheus.exporter.nginx.nginx.targets
   forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
 }
 
@@ -131,4 +134,14 @@ otelcol.receiver.otlp "concierge" {
   output {
     traces  = [otelcol.exporter.otlp.grafana_cloud_traces.input]
   }
+}
+
+// 5. Individual Docker Container metrics
+prometheus.exporter.cadvisor "containers" {
+  docker_only = true
+}
+
+prometheus.scrape "containers" {
+  targets    = prometheus.exporter.cadvisor.containers.targets
+  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
 }
