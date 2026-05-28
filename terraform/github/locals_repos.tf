@@ -31,31 +31,6 @@ locals {
         }
       }
     }
-    ".github" = {
-      description                 = "Organization-wide shared templates."
-      visibility                  = "public"
-      has_issues                  = true
-      vulnerability_alerts        = true
-      dependabot_security_updates = true
-      has_wiki                    = false
-      default_branch              = "main"
-      topics                      = ["organization-templates"]
-      team_access                 = { "Maintainers" = "admin" }
-      branch_protection           = null
-      environments = {
-        "development" = {}
-        "production" = {
-          deployment_branch_policy = {
-            protected_branches     = true
-            custom_branch_policies = false
-          }
-        }
-      }
-      security_and_analysis = {
-        secret_scanning                 = { status = "enabled" }
-        secret_scanning_push_protection = { status = "enabled" }
-      }
-    }
     "dotfiles" = {
       description                 = "dotfiles for macOS."
       visibility                  = "public"
