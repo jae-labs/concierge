@@ -104,7 +104,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
       - name: Run Gosec security scanner
-        uses: securego/gosec@6351b0c6fcc7d75acb230a9be7f9047aada322ae # ratchet:securego/gosec@master
+        uses: securego/gosec@bd17b2589eb634e511b352f14fc30cb40863eefe # ratchet:securego/gosec@master
         with:
           args: "./src/..."
         continue-on-error: true
