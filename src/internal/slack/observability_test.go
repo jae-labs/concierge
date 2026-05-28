@@ -144,7 +144,7 @@ func TestEventsHTTPHandlerInteractiveBlockActionPreservesTraceContext(t *testing
 		t.Fatalf("got status=%d, want %d", rr.Code, http.StatusOK)
 	}
 
-	httpSpan := findSpanByName(t, recorder.Ended(), "slack.events")
+	httpSpan := findSpanByName(t, recorder.Ended(), "POST /slack/events")
 	postSpan := findSpanByName(t, recorder.Ended(), "slack.api.post_message")
 	updateSpan := findSpanByName(t, recorder.Ended(), "slack.api.update_message")
 
