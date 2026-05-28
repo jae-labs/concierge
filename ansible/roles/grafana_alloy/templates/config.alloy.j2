@@ -15,6 +15,16 @@ prometheus.remote_write "grafana_cloud_metrics" {
   }
 }
 
+// Global Relabeling to inject the Ansible hostname as 'instance'
+prometheus.relabel "add_instance_label" {
+  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+}
+
 // 1. Host (Unix) system metrics
 prometheus.exporter.unix "host" {
   enabled_collectors = ["cpu", "meminfo", "diskstats", "netdev", "systemd", "filesystem", "loadavg", "tcpstat"]
@@ -22,7 +32,7 @@ prometheus.exporter.unix "host" {
 
 prometheus.scrape "host" {
   targets    = prometheus.exporter.unix.host.targets
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.relabel.add_instance_label.receiver]
 }
 
 // 2. Concierge Application metrics
@@ -30,7 +40,7 @@ prometheus.scrape "concierge" {
   targets = [
     {"__address__" = "127.0.0.1:9090"},
   ]
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.relabel.add_instance_label.receiver]
 }
 
 // 3. Nginx Status metrics
@@ -40,7 +50,7 @@ prometheus.exporter.nginx "nginx" {
 
 prometheus.scrape "nginx" {
   targets    = prometheus.exporter.nginx.nginx.targets
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.relabel.add_instance_label.receiver]
 }
 
 // 4. Alloy self-metrics
@@ -48,7 +58,17 @@ prometheus.scrape "alloy" {
   targets = [
     {"__address__" = "127.0.0.1:12345"},
   ]
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+  forward_to = [prometheus.relabel.add_instance_label.receiver]
+}
+
+// 5. Individual Docker Container metrics
+prometheus.exporter.cadvisor "containers" {
+  docker_only = true
+}
+
+prometheus.scrape "containers" {
+  targets    = prometheus.exporter.cadvisor.containers.targets
+  forward_to = [prometheus.relabel.add_instance_label.receiver]
 }
 
 // ----------------------------------------------------
@@ -134,14 +154,4 @@ otelcol.receiver.otlp "concierge" {
   output {
     traces  = [otelcol.exporter.otlp.grafana_cloud_traces.input]
   }
-}
-
-// 5. Individual Docker Container metrics
-prometheus.exporter.cadvisor "containers" {
-  docker_only = true
-}
-
-prometheus.scrape "containers" {
-  targets    = prometheus.exporter.cadvisor.containers.targets
-  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
 }
