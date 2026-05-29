@@ -12,6 +12,8 @@ GitHub Actions workflows at `.github/workflows/` in the repo root.
 | `cloudflare-apply.yml` | `terraform/cloudflare/**`, `terraform/modules/cloudflare/**` | `CLOUDFLARE_API_TOKEN` |
 | `doppler-apply.yml` | `terraform/doppler/**`, `terraform/modules/doppler/**` | `DOPPLER_TOKEN` |
 | `oci-apply.yml` | `terraform/oci/**` | OCI auth and stack secrets |
+| `ansible-adhoc.yml` | Manual (`workflow_dispatch`) | OCI auth and stack secrets in the `production` environment |
+
 
 ## Bot workflows
 
@@ -39,6 +41,17 @@ The bot release workflow also mirrors `flashcards`, with monorepo path adjustmen
 6. Downloads the Linux amd64 release artifact and deploys it to the OCI host through Ansible in the `production` environment
 
 The release-creation steps use the default `GITHUB_TOKEN`. The deploy job additionally needs OCI auth, SSH access, and concierge runtime secrets from the `production` environment.
+
+### `ansible-adhoc.yml`
+
+The manual Ansible ad-hoc workflow allows operators to run specific tags or categories of configuration on the OCI instance via `workflow_dispatch`.
+
+1. Prompts for tag `category` (`all`, `baseline`, `web`, `monitoring`, `concierge`, `custom`).
+2. Accepts optional `custom_tags` and `custom_skip_tags`.
+3. Sets up OCI auth and SSH access to the production host.
+4. Prepares dynamic Ansible deployment variables.
+5. Runs Ansible syntax check followed by playbook execution with the requested tags and optional dry-run check mode.
+
 
 ## Reusable workflow
 

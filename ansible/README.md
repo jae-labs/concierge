@@ -81,6 +81,53 @@ cd ansible
 ansible-playbook -i inventory/oci.oci.yml playbooks/site.yml
 ```
 
+## Tag Filtering
+
+Every role in the playbook is tagged with its name, as well as a high-level category tag. This allows you to run only specific parts of the configuration to save time.
+
+### Available Tags & Categories
+
+| Role / Task | Role Tag | Category Tag | Description |
+|---|---|---|---|
+| `common` | `common` | `baseline` | Core OS updates, packages, and setup |
+| `oci_iptables` | `oci_iptables`, `firewall` | `baseline` | Host-level iptables rules |
+| `ssh_hardening` | `ssh_hardening`, `security` | `baseline` | Hardened SSH configuration |
+| `fail2ban` | `fail2ban`, `security` | `baseline` | Fail2ban service and jails |
+| `tailscale` | `tailscale` | `baseline` | Tailscale VPN client configuration |
+| `swapfile` | `swapfile` | `baseline` | Virtual memory swap file setup |
+| `docker` | `docker` | `baseline` | Docker CE engine and group setup |
+| `nginx` | `nginx` | `web` | Nginx reverse proxy configuration |
+| `n8n` | `n8n` | `web` | Deploy and run n8n service |
+| `certbot` | `certbot`, `security` | `web` | Certbot certificate provisioning |
+| `concierge` | `concierge`, `deploy` | `deploy` | Deploy/upgrade concierge bot |
+| `grafana_alloy` | `grafana_alloy` | `monitoring` | Deploy Grafana Alloy telemetry collector |
+
+### Local Tag Filtering Examples
+
+Run only the Slack bot deployment:
+```sh
+ansible-playbook -i inventory/oci.oci.yml playbooks/site.yml --tags concierge
+```
+
+Run only core baseline security configuration:
+```sh
+ansible-playbook -i inventory/oci.oci.yml playbooks/site.yml --tags baseline
+```
+
+Exclude Grafana Alloy monitoring configuration:
+```sh
+ansible-playbook -i inventory/oci.oci.yml playbooks/site.yml --skip-tags monitoring
+```
+
+## Running Ad-hoc via GitHub Actions
+
+Infrequent host and service configuration (like OS updates, nginx setup, and monitoring) should be run ad-hoc via the manual **Ansible Ad-hoc Configuration** workflow in GitHub Actions.
+
+1. Go to the **Actions** tab in GitHub.
+2. Select the **Ansible Ad-hoc Configuration** workflow.
+3. Click **Run workflow**, choose your branch, select a configuration category (e.g., `baseline`, `monitoring`), and optionally configure custom tags or skip-tags.
+4. Click **Run workflow** to execute.
+
 ## Deploying the concierge bot
 
 The `concierge` role deploys the conCIerge bot in a Docker container using Docker Compose and manages it with a systemd service unit. It pulls the image specified by `concierge_image` and `concierge_image_tag` (which default to `ghcr.io/jae-labs/concierge:latest`), renders `/etc/concierge/concierge.env` from Ansible variables, and runs the service in `network_mode: host` to share the host's networking.
@@ -120,7 +167,7 @@ Grafana Alloy is deployed as a local telemetry collector on the OCI host. All sc
 * **Nginx Metrics**: Scrapes web server active connections on `127.0.0.1:9113` via `prometheus-nginx-exporter` (which in turn scrapes Nginx's status page on `127.0.0.1:8081/metrics`).
 * **Alloy Metrics**: Scrapes Alloy runtime and collection metrics on `127.0.0.1:12345/metrics`.
 * **System Logs**: Tail logs from `journald` (filtered for service names and units).
-* **Nginx Logs**: Collects nginx access and error logs from `/var/log/nginx/*.log`.
+* **Nginx Logs**: Collects nginx access and error logs from `/var/log/nginx/*.log`. Access logs use JSON and include `request_time`, `upstream_response_time`, `upstream_status`, and `upstream_addr` for latency and upstream error SLIs.
 
 ### Credentials Injection
 
