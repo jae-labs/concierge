@@ -178,3 +178,4 @@ Grafana Cloud write endpoints and tokens are injected dynamically from your loca
 * `GRAFANA_CLOUD_TEMPO_URL` & `GRAFANA_CLOUD_TEMPO_USERNAME` & `GRAFANA_CLOUD_TEMPO_TOKEN`
 * `TAILSCALE_AUTH_KEY`
 * optional `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, and `SENTRY_RELEASE`
+
