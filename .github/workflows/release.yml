@@ -355,12 +355,28 @@ jobs:
           ts=$(date +%s)
           body='{"type":"url_verification","token":"token","challenge":"workflow-probe"}'
           sig=$(printf 'v0:%s:%s' "$ts" "$body" | openssl dgst -sha256 -hmac "$SLACK_SIGNING_SECRET" -hex | awk '{print $2}')
-          response=$(curl -qsk -X POST https://oci.justanother.engineer/slack/events \
-            -H 'Content-Type: application/json' \
-            -H "X-Slack-Request-Timestamp: $ts" \
-            -H "X-Slack-Signature: v0=$sig" \
-            --data "$body")
-          test "$response" = '{"challenge":"workflow-probe"}'
+          
+          echo "Waiting for concierge service to start and be healthy..."
+          success=false
+          for i in {1..60}; do
+            response=$(curl -qsk -X POST https://oci.justanother.engineer/slack/events \
+              -H 'Content-Type: application/json' \
+              -H "X-Slack-Request-Timestamp: $ts" \
+              -H "X-Slack-Signature: v0=$sig" \
+              --data "$body")
+            if [ "$response" = '{"challenge":"workflow-probe"}' ]; then
+              echo "Service verified successfully!"
+              success=true
+              break
+            fi
+            echo "Attempt $i/60: service not ready yet. Retrying in 1s..."
+            sleep 1
+          done
+          
+          if [ "$success" = false ]; then
+            echo "Timeout: concierge service did not become healthy in 60s"
+            exit 1
+          fi
         env:
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
 
