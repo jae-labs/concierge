@@ -1,4 +1,0 @@
-- name: Apply netfilter-persistent rules
-  ansible.builtin.service:
-    name: netfilter-persistent
-    state: restarted

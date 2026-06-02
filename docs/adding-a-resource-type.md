@@ -177,8 +177,8 @@ Create async PR creation function (follows pattern of `createDnsAddPR()`, `creat
 ### Step 11: Update documentation
 
 - Add bot integration status to terraform module doc in `iac` repo (`docs/doppler-module.md`)
-- Update `src/AGENTS.md` cross-system contract tables
-- Update root `AGENTS.md` cross-system contract table
+- Update `AGENTS.md` cross-system contract tables
+
 
 ## Create vs edit parity
 

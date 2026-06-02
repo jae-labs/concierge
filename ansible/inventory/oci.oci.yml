@@ -1,3 +1,0 @@
-plugin: oracle.oci.oci
-compose:
-  ansible_host: public_ip
